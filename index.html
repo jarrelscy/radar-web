@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RADAR in the browser: abdominal CT findings</title>
+<script src="coi-serviceworker.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>RADAR <span>in the browser</span></h1>
+    <p>Runs the <a href="https://github.com/alibaba-damo-academy/damo-radar">RADAR</a> generalist model on an abdominal CT to score 146 findings across 18 organs.
+      Everything runs on this computer with WebGPU or the CPU. Nothing is uploaded.</p>
+    <p class="warn">Research use only. Not a medical device and not for clinical decisions.
+      RADAR ships no calibrated thresholds; scores of 50% or more are shown as positive.</p>
+  </header>
+
+  <section class="controls">
+    <div class="device" role="radiogroup" aria-label="Compute device">
+      <label><input type="radio" name="device" value="auto" checked> Auto</label>
+      <label><input type="radio" name="device" value="webgpu"> WebGPU</label>
+      <label><input type="radio" name="device" value="wasm"> CPU</label>
+    </div>
+    <div id="caps" class="caps"></div>
+  </section>
+
+  <section id="drop" class="drop" tabindex="0">
+    <p><b>Drop a CT here</b>: a zip of a DICOM study, a DICOM folder, loose DICOM files, or a .nii / .nii.gz volume.</p>
+    <p class="hint">From a study, the largest axial CT series with "abd" in its description or body part is used; otherwise the largest CT series.
+      Only that series' slices are read.</p>
+    <div class="buttons">
+      <label class="btn">Choose file(s)<input id="files" type="file" multiple accept=".zip,.nii,.gz,.dcm,application/zip,application/dicom,*/*"></label>
+      <label class="btn">Choose folder<input id="folder" type="file" webkitdirectory></label>
+    </div>
+  </section>
+
+  <section id="status" class="status" hidden>
+    <div class="stage"><span id="stage">Starting</span><span id="pct"></span></div>
+    <div class="bar"><i id="bar"></i></div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="summary" id="summary"></div>
+    <div class="tools">
+      <label><input type="radio" name="view" value="organ" checked> By organ</label>
+      <label><input type="radio" name="view" value="score"> By score</label>
+      <label><input type="checkbox" id="posOnly"> Positive only</label>
+      <button id="download" class="btn small">Download JSON</button>
+    </div>
+    <div id="table"></div>
+  </section>
+
+  <details id="logbox" open>
+    <summary>Log</summary>
+    <pre id="log"></pre>
+  </details>
+
+  <footer>
+    <p>Model: RADAR by Alibaba DAMO Academy, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>.
+      Weights converted to ONNX and run with <a href="https://onnxruntime.ai/">ONNX Runtime Web</a>.
+      <a href="https://github.com/jarrelscy/radar-web">Source</a>.</p>
+  </footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
