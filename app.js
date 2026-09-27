@@ -70,7 +70,7 @@ function onMessage({ data }) {
   else if (data.type === 'ready') { if (!busy) setStage('Models ready. Drop a scan to start.', 1); }
   else if (data.type === 'progress') setStage(data.stage, data.frac);
   else if (data.type === 'error') { log(`ERROR: ${data.msg}`); setStage(`Error: ${data.msg}`, 0); done(); }
-  else if (data.type === 'result') { last = data; setStage(`Done in ${data.seconds.toFixed(0)}s`, 1); show(data); done(); }
+  else if (data.type === 'result') { last = window.__last = data; setStage(`Done in ${data.seconds.toFixed(0)}s`, 1); show(data); done(); }
 }
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

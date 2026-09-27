@@ -32,6 +32,7 @@ console.log((await page.textContent('#log')).trim());
 console.log('summary:', await page.textContent('#summary'));
 const top = await page.$$eval('#table .row', rs => rs.slice(0, 6).map(r => r.innerText.replace(/\s+/g, ' ')));
 console.log(top.join('\n'));
-const scores = await page.evaluate(() => window.__last);
+const scores = await page.evaluate(() => window.__last?.scores);
+if (process.env.OUT && scores) (await import('node:fs')).writeFileSync(process.env.OUT, JSON.stringify(scores));
 console.log(`wall ${(Date.now() - t0) / 1000}s`);
 await browser.close();

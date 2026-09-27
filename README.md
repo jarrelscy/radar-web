@@ -21,7 +21,7 @@ From a study, the largest axial CT series with "abd" in its Series Description o
 - Recent desktop Chrome or Edge (tested). Firefox and Safari may work in CPU mode but are untested.
 - 8 GB RAM minimum, 16 GB recommended; the tab peaks at about 4 GB.
 - A CPU run takes about 35 s on a 16-core desktop and a few minutes on a 4-core laptop.
-- WebGPU mode is experimental and needs several GB of free GPU memory; Auto falls back to the CPU.
+- WebGPU mode needs about 8 GB of free GPU memory (7.4 GB peak measured); Auto falls back to the CPU if it fails.
 - About 150 MB of browser storage. Internet is needed on the first visit only; after that the page and models load from the browser cache.
 
 ## How it works
@@ -44,7 +44,7 @@ The vision network (a 3D nnU-Net-style encoder/decoder) was rewritten using only
 
 On the upstream demo case (as DICOM zip and as NIfTI) the browser output matches the PyTorch pipeline: the same windows, the same organs scored in each, and all 146 scores within 1e-5. One known difference: upstream averages segmentation probabilities where windows overlap before placing the centred crops, while this port keeps the label from the last window. That can move a crop by a few voxels on some cases.
 
-Performance on the demo case (2 windows plus 1 centred crop): about 40 s on a 16-thread CPU. If a WebGPU run fails in Auto mode, it retries on the CPU.
+Performance on the demo case (2 windows plus 1 centred crop): about 40 s on a 16-thread CPU and 4.4 s of inference on WebGPU (RTX PRO 6000), where all 146 scores match the CPU run to within 3e-7. If a WebGPU run fails in Auto mode, it retries on the CPU.
 
 ## Running locally
 
