@@ -11,11 +11,23 @@
 <main>
   <header>
     <h1>RADAR <span>in the browser</span></h1>
-    <p>Runs the <a href="https://github.com/alibaba-damo-academy/damo-radar">RADAR</a> generalist model on an abdominal CT to score 146 findings across 18 organs.
-      Everything runs on this computer with WebGPU or the CPU. Nothing is uploaded.</p>
-    <p class="warn">Research use only. Not a medical device and not for clinical decisions.
-      RADAR ships no calibrated thresholds; scores of 50% or more are shown as positive.</p>
+    <p>Runs the <a href="https://github.com/alibaba-damo-academy/damo-radar">RADAR</a> generalist abdominal CT model from Alibaba DAMO Academy to score 146 findings across 18 organs.</p>
   </header>
+
+  <section class="notice" aria-label="Disclaimer">
+    <div>
+      <h2>Research use only</h2>
+      <p>This is a research demonstration and is not a medical device. It has not been validated or approved for clinical use,
+        and it must not be used for diagnosis, treatment or any other clinical decision. Scores can be wrong.
+        RADAR ships no calibrated thresholds; scores of 50% or more are shown as positive for display only.</p>
+    </div>
+    <div>
+      <h2>Your images stay on this computer</h2>
+      <p>Files you choose are read and processed inside this browser tab, using your GPU or CPU. No image data or results are uploaded anywhere.
+        The only downloads are this page and the model files (~116 MB from <a href="https://huggingface.co/jarrelscy/radar-onnx">Hugging Face</a>),
+        which are fetched once and cached in the browser.</p>
+    </div>
+  </section>
 
   <section class="controls">
     <div class="device" role="radiogroup" aria-label="Compute device">
@@ -58,6 +70,7 @@
   </details>
 
   <footer>
+    <p>Research use only. Not a medical device. Images are processed locally and never uploaded.</p>
     <p>Model: RADAR by Alibaba DAMO Academy, <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>.
       Weights converted to ONNX and run with <a href="https://onnxruntime.ai/">ONNX Runtime Web</a>.
       <a href="https://github.com/jarrelscy/radar-web">Source</a>.</p>

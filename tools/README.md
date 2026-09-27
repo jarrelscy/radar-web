@@ -2,7 +2,7 @@
 
 Build and test scripts. None of this is needed to run the site.
 
-- `export.py`: converts `checkpoint_radar_pretrain.pth` into `models/` (three ONNX parts plus `head.bin`/`head.json`)
+- `export.py`: converts `checkpoint_radar_pretrain.pth` into `models/` (three ONNX parts plus `head.bin`/`head.json`). `models/` is not committed. The site loads the files from https://huggingface.co/jarrelscy/radar-onnx. After re-exporting, upload them with `hf upload jarrelscy/radar-onnx models .` and put the new commit hash in `MODELS` in `worker.js`. The Node and WebGPU test scripts read the local `models/` folder
   and checks the rewritten network against the original VisionBranch.
 - `reference.py`: runs the radar-svc pipeline in Python on one input and dumps the preprocessed volume,
   the windows, which organs each window scored, the fallback crops and the scores.

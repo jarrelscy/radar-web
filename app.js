@@ -62,6 +62,7 @@ function show(r) {
   if (i.size) sum.push(`${i.size.join('×')} voxels at ${i.spacing_mm.join(' × ')} mm`);
   sum.push(`<b>${pos}</b> of ${Object.keys(r.scores).length} findings ≥ 50%`);
   sum.push(`${r.device === 'webgpu' ? 'WebGPU' : 'CPU'}, ${r.seconds.toFixed(0)}s`);
+  sum.push('research use only, not for clinical decisions');
   $('summary').innerHTML = sum.join(' · ');
   render();
 }
@@ -102,7 +103,7 @@ $('download').onclick = () => {
   const findings = Object.entries(last.scores).sort((a, b) => b[1] - a[1]).map(([key, prob]) => {
     const [organ, finding] = ENGLISH[key].split('_'); return { key, organ, finding, prob: +prob.toFixed(4) };
   });
-  const blob = new Blob([JSON.stringify({ ...last.info, device: last.device, seconds: +last.seconds.toFixed(1), findings, organs_not_found: last.organsNotFound, trace: last.trace }, null, 1)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ disclaimer: 'Research use only. Not a medical device and not for diagnosis or treatment decisions.', model: 'RADAR (Alibaba DAMO Academy), CC BY-NC-SA 4.0', ...last.info, device: last.device, seconds: +last.seconds.toFixed(1), findings, organs_not_found: last.organsNotFound, trace: last.trace }, null, 1)], { type: 'application/json' });
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'radar-results.json' });
   a.click(); URL.revokeObjectURL(a.href);
 };

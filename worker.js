@@ -12,14 +12,16 @@ ort.env.wasm.wasmPaths = base + 'vendor/ort/';
 ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(navigator.hardwareConcurrency || 4, 16) : 1;
 ort.env.logLevel = 'error';
 
-const MODELS = base + 'models/';
-const CACHE = 'radar-models-v2';
+// Model files are on Hugging Face, pinned to one commit so the browser cache never mixes versions.
+const MODELS = 'https://huggingface.co/jarrelscy/radar-onnx/resolve/5108c03d75188062ac1b6841c3abab07afcff662/';
+const CACHE = 'radar-models';
 const post = (type, x = {}) => self.postMessage({ type, ...x });
 const log = msg => post('log', { msg });
 const stage = (name, frac) => post('progress', { stage: name, frac });
 
 // Models come from the Cache API after the first visit.
 async function loader() {
+  if (self.caches) for (const k of await caches.keys()) if (k.startsWith('radar-models-')) await caches.delete(k);
   const cache = self.caches ? await caches.open(CACHE) : null;
   const sizes = { 'part_b.data0': 57698304, 'part_b.data1': 44425472 };
   const total = 116e6; let got = 0, fetched = false;
@@ -27,9 +29,9 @@ async function loader() {
     const url = MODELS + name;
     let res = cache && await cache.match(url);
     if (!res) {
-      if (!fetched) { fetched = true; log('downloading models (~116 MB, cached for next time)'); }
+      if (!fetched) { fetched = true; log('downloading models from Hugging Face (~116 MB, cached in this browser for next time)'); }
       const r = await fetch(url);
-      if (!r.ok) throw new Error(`failed to fetch ${name}: ${r.status}`);
+      if (!r.ok) throw new Error(`failed to fetch ${name} from Hugging Face: ${r.status}`);
       const parts = [], rd = r.body.getReader();
       for (;;) {
         const { done, value } = await rd.read(); if (done) break;
