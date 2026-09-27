@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>RADAR parts: WebGPU vs CPU</title>
+<script src="../coi-serviceworker.js"></script>
+<pre id="out"></pre>
+<script type="module">
+// Runs each ONNX part on WebGPU and CPU with the same random input and compares outputs.
+// ?d=32&h=128&w=128 sets the window size; ?only=a,b,c picks parts; ?cpu=0 skips the CPU comparison.
+import * as ort from '../vendor/ort/ort.webgpu.min.mjs';
+ort.env.wasm.wasmPaths = new URL('../vendor/ort/', location.href).href;
+ort.env.wasm.numThreads = crossOriginIsolated ? 16 : 1;
+const q = new URLSearchParams(location.search);
+const d = +(q.get('d') || 32), h = +(q.get('h') || 128), w = +(q.get('w') || 128), K = Math.min(8, d);
+if (q.get('verbose')) { ort.env.logLevel = 'verbose'; ort.env.debug = true; }
+const only = (q.get('only') || 'a,b,c').split(','), cpu = q.get('cpu') !== '0';
+const out = document.getElementById('out');
+const log = s => { out.textContent += s + '\n'; console.log('[parts] ' + s); };
+const M = n => new URL(`../models/${n}`, location.href).href;
+let seed = 1; const rnd = n => { const a = new Float32Array(n); for (let i = 0; i < n; i++) { seed = (seed * 1103515245 + 12345) >>> 0; a[i] = seed / 2 ** 32; } return a; };
+const fetchBuf = async n => new Uint8Array(await (await fetch(M(n))).arrayBuffer());
+const ext = [{ path: 'part_b.data0', data: await fetchBuf('part_b.data0') }, { path: 'part_b.data1', data: await fetchBuf('part_b.data1') }];
+async function sess(name, ep) {
+  if (name === 'debug_a') return ort.InferenceSession.create(new URL('debug_a.onnx', location.href).href, { executionProviders: [ep] });
+  const cache = q.get('cache'), opt = { executionProviders: [ep === 'webgpu' && cache ? { name: 'webgpu', storageBufferCacheMode: cache } : ep] };
+  if (name === 'part_b') opt.externalData = ext;
+  return ort.InferenceSession.create(M(`${name}.onnx`), opt);
+}
+function cmp(name, a, b) {
+  let m = 0, s = 0, diff = 0;
+  for (let i = 0; i < a.length; i++) { const e = Math.abs(a[i] - b[i]); if (e > m) m = e; s += Math.abs(b[i]); if (a[i] !== b[i]) diff++; }
+  log(`  ${name}: n=${a.length} max|diff|=${m.toExponential(2)} mean|cpu|=${(s / a.length).toExponential(2)} differing=${(100 * diff / a.length).toFixed(3)}%`);
+}
+async function both(name, feeds, outs) {
+  const res = {};
+  for (const ep of cpu ? ['webgpu', 'wasm'] : ['webgpu']) {
+    try {
+      const s = await sess(name, ep), t0 = performance.now();
+      if (ep === 'webgpu' && !globalThis.__lim) { const dv = await ort.env.webgpu.device; globalThis.__lim = 1; log(`device limits: maxBufferSize ${dv?.limits.maxBufferSize / 2 ** 20} MB, maxStorageBufferBindingSize ${dv?.limits.maxStorageBufferBindingSize / 2 ** 20} MB, maxComputeWorkgroupsPerDimension ${dv?.limits.maxComputeWorkgroupsPerDimension}`); }
+      const o = await s.run(feeds());
+      res[ep] = {}; for (const k of outs) res[ep][k] = await o[k].getData(true);
+      log(`${name} ${ep}: ${(performance.now() - t0).toFixed(0)} ms`);
+      await s.release();
+    } catch (e) { log(`${name} ${ep}: FAILED ${e.message}`); }
+  }
+  if (res.webgpu && res.wasm) for (const k of outs) cmp(k, res.webgpu[k], res.wasm[k]);
+  return res.wasm || res.webgpu;
+}
+log(`window ${d}x${h}x${w}, isolated ${crossOriginIsolated}`);
+const h4 = h / 4, w4 = w / 4;
+if (only.includes('a')) await both('part_a', () => (seed = 1, { img: new ort.Tensor('float32', rnd((K + 2) * h * w), [K + 2, 1, h, w]), edge: new ort.Tensor('float32', new Float32Array(K + 2).fill(1), [K + 2]) }), ['t']);
+if (only.includes('debug')) {
+  const s0 = await sess('debug_a', 'wasm'); const names = s0.outputNames; await s0.release();
+  await both('debug_a', () => (seed = 1, { img: new ort.Tensor('float32', rnd((K + 2) * h * w), [K + 2, 1, h, w]), edge: new ort.Tensor('float32', new Float32Array(K + 2).fill(1), [K + 2]) }), names);
+}
+if (only.includes('cut')) {
+  const cutExt = [{ path: 'cut.data', data: new Uint8Array(await (await fetch('cut.data')).arrayBuffer()) }];
+  const s = await ort.InferenceSession.create('cut.onnx', { executionProviders: ['webgpu'], externalData: cutExt }), t0 = performance.now();
+  try { const o = await s.run({ t: new ort.Tensor('float32', rnd(d * 128 * h4 * w4), [d, 128, h4, w4]) }); const k = s.outputNames[0]; await o[k].getData(true); log(`cut ${k} ok ${(performance.now() - t0).toFixed(0)} ms`); }
+  catch (e) { log(`cut FAILED ${e.message.slice(0, 150)}`); }
+}
+if (only.includes('b')) await both('part_b', () => (seed = 2, { t: new ort.Tensor('float32', rnd(d * 128 * h4 * w4), [d, 128, h4, w4]) }), ['x2', 'emb1', 'emb2', 'emb3']);
+if (only.includes('c')) await both('part_c', () => (seed = 3, { img: new ort.Tensor('float32', rnd(K * h * w), [K, 1, h, w]), x2: new ort.Tensor('float32', rnd(K * 128 * h4 * w4), [K, 128, h4, w4]) }), ['label']);
+log('DONE');
+</script>

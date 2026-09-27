@@ -80,19 +80,26 @@ class Conv(nn.Module):
 
 
 class Up(nn.Module):
-    """ConvTranspose3d with kernel == stride on [D,C,H,W]."""
+    """ConvTranspose3d with kernel == stride on [D,C,H,W].
 
-    def __init__(self, w, b):
+    chunks > 1 runs the 1x1 conv on that many depth chunks (D must divide evenly). ORT WebGPU's 1x1 conv
+    fails once its output passes 2^26 elements, which u2 does on a full 96x256x384 window."""
+
+    def __init__(self, w, b, chunks=1):
         super().__init__()
         ci, co, sd, sh, sw = w.shape
-        self.co, self.s = co, (sd, sh, sw)
+        self.co, self.s, self.chunks = co, (sd, sh, sw), chunks
         self.register_buffer("w", w.permute(1, 2, 3, 4, 0).reshape(co * sd * sh * sw, ci, 1, 1).contiguous())
         self.register_buffer("b", b.repeat_interleave(sd * sh * sw).contiguous())
 
     def forward(self, x):
         d, _, h, w = x.shape
         sd, sh, sw = self.s
-        y = F.conv2d(x, self.w, self.b)  # [D, co*sd*sh*sw, H, W]
+        if self.chunks > 1:
+            xs = x.reshape(self.chunks, -1, *x.shape[1:])
+            y = torch.cat([F.conv2d(xs[i], self.w, self.b) for i in range(self.chunks)])
+        else:
+            y = F.conv2d(x, self.w, self.b)  # [D, co*sd*sh*sw, H, W]
         y = y.reshape(d, self.co, sd, sh, sw, h, w).permute(0, 2, 1, 5, 3, 6, 4)
         return y.reshape(d * sd, self.co, h * sh, w * sw)
 
@@ -143,11 +150,12 @@ class PartB(nn.Module):
         self.s3 = nn.ModuleList([Conv(*enc(sd, 3, 0), stride=(2, 2, 2)), Conv(*enc(sd, 3, 1))])
         self.s4 = nn.ModuleList([Conv(*enc(sd, 4, 0), stride=(2, 2, 2)), Conv(*enc(sd, 4, 1))])
         self.s5 = nn.ModuleList([Conv(*enc(sd, 5, 0), stride=(2, 2, 2)), Conv(*enc(sd, 5, 1))])
-        up = lambda i: Up(sd[f"{V}decoder.transpconvs.{i}.weight"], sd[f"{V}decoder.transpconvs.{i}.bias"])
+        # u2 input depth is D/2; windows and crops are multiples of 32 deep, so 4 chunks always divide it
+        up = lambda i, n=1: Up(sd[f"{V}decoder.transpconvs.{i}.weight"], sd[f"{V}decoder.transpconvs.{i}.bias"], n)
         dec = lambda i, n: Conv(*fold(sd, f"{V}decoder.stages.{i}.convs.0"), splits=[n, n])
         self.u0, self.d0 = up(0), dec(0, 320)
         self.u1, self.d1 = up(1), dec(1, 256)
-        self.u2, self.d2 = up(2), dec(2, 128)
+        self.u2, self.d2 = up(2, 4), dec(2, 128)
         self.p1 = Conv(*conv1x1(sd, "visual_encoder.proj1"), relu=False)
         self.p2 = Conv(*conv1x1(sd, "visual_encoder.proj2"), relu=False)
         self.p3 = Conv(*conv1x1(sd, "visual_encoder.proj3"), relu=False)

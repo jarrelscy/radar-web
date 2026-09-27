@@ -16,3 +16,8 @@ uv venv .venv-conv -p 3.11 && uv pip install --python .venv-conv/bin/python torc
 .venv-conv/bin/python tools/reference.py case.zip /tmp/radar_ref
 (cd tools && npm install) && node tools/node-test.mjs case.zip /tmp/radar_ref/reference.json
 ```
+
+## WebGPU checks
+
+- `parts.html` + `parts-test.mjs`: runs each ONNX part on WebGPU and CPU with the same random input and compares the outputs. `node tools/parts-test.mjs "d=96&h=256&w=384&only=b"` uses SwiftShader; set `GPU=1` to use the real GPU. Needs the static server on :8765.
+- `cut.py`: cuts part_b at a named tensor into `cut.onnx`, which `parts.html?only=cut` runs on WebGPU. Used to find the op that fails.

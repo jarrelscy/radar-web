@@ -13,7 +13,7 @@ ort.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(navigator.hardware
 ort.env.logLevel = 'error';
 
 const MODELS = base + 'models/';
-const CACHE = 'radar-models-v1';
+const CACHE = 'radar-models-v2';
 const post = (type, x = {}) => self.postMessage({ type, ...x });
 const log = msg => post('log', { msg });
 const stage = (name, frac) => post('progress', { stage: name, frac });

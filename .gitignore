@@ -1,3 +1,6 @@
+__pycache__/
+tools/cut.data
+tools/cut.onnx
+tools/debug_a.onnx
 tools/node_modules/
 .venv-conv/
-__pycache__/
