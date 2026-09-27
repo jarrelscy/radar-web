@@ -3,7 +3,8 @@ import { ENGLISH, TEST_ITEMS } from './lib/labels.js';
 
 const $ = id => document.getElementById(id);
 const logEl = $('log');
-let t0 = performance.now(), worker = null, last = null, busy = false;
+const t0 = performance.now();
+let worker = null, last = null, busy = false, runStart = 0, cur = { name: '', frac: 0 };
 
 function log(msg) {
   const t = ((performance.now() - t0) / 1000).toFixed(2).padStart(7);
@@ -22,31 +23,51 @@ function log(msg) {
 
 function device() { return document.querySelector('input[name=device]:checked').value; }
 
+function startWorker() {
+  if (worker) return;
+  worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+  worker.onmessage = onMessage;
+  worker.onerror = e => { log(`worker error: ${e.message}`); done(); };
+}
+
+// Fetch and build the models as soon as the page opens so the first scan starts straight away.
+startWorker();
+$('status').hidden = false; setStage('Loading models', 0);
+log('loading models');
+worker.postMessage({ preload: true, device: device() });
+document.querySelectorAll('input[name=device]').forEach(el => el.addEventListener('change', () => { if (!busy) worker.postMessage({ preload: true, device: device() }); }));
+
 function run(files) {
   files = [...files];
   if (!files.length || busy) return;
-  busy = true; t0 = performance.now(); logEl.textContent = '';
+  busy = true; runStart = performance.now();
   $('drop').classList.add('busy'); $('status').hidden = false; $('results').hidden = true;
+  log('---- new scan');
   setStage('Starting', 0);
   log(`${files.length} file(s): ${files.slice(0, 3).map(f => f.webkitRelativePath || f.name).join(', ')}${files.length > 3 ? ', …' : ''}`);
-  if (!worker) {
-    worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = onMessage;
-    worker.onerror = e => { log(`worker error: ${e.message}`); done(); };
-  }
+  startWorker();
   worker.postMessage({ files, device: device() });
 }
 
 function done() { busy = false; $('drop').classList.remove('busy'); }
 
 function setStage(name, frac) {
+  cur = { name, frac };
   $('stage').textContent = name;
-  $('pct').textContent = frac > 0 ? `${Math.round(frac * 100)}%` : '';
   $('bar').style.width = `${Math.round(frac * 100)}%`;
+  showPct();
 }
+
+// Elapsed seconds keep ticking during long single steps (the middle network is one call of several seconds).
+function showPct() {
+  const pct = cur.frac > 0 ? `${Math.round(cur.frac * 100)}%` : '';
+  $('pct').textContent = busy ? [pct, `${((performance.now() - runStart) / 1000).toFixed(0)}s`].filter(Boolean).join(' · ') : pct;
+}
+setInterval(() => { if (busy) showPct(); }, 1000);
 
 function onMessage({ data }) {
   if (data.type === 'log') log(data.msg);
+  else if (data.type === 'ready') { if (!busy) setStage('Models ready. Drop a scan to start.', 1); }
   else if (data.type === 'progress') setStage(data.stage, data.frac);
   else if (data.type === 'error') { log(`ERROR: ${data.msg}`); setStage(`Error: ${data.msg}`, 0); done(); }
   else if (data.type === 'result') { last = data; setStage(`Done in ${data.seconds.toFixed(0)}s`, 1); show(data); done(); }

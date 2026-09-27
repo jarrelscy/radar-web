@@ -1,4 +1,4 @@
-// Runs the whole pipeline off the main thread. Messages in: {files, device}.
+// Runs the whole pipeline off the main thread. Messages in: {files, device} or {preload: true, device}.
 // Messages out: {type:'log'|'progress'|'result'|'error', ...}.
 import * as ort from './vendor/ort/ort.webgpu.min.mjs';
 import { openInput } from './lib/source.js';
@@ -24,35 +24,54 @@ async function loader() {
   if (self.caches) for (const k of await caches.keys()) if (k.startsWith('radar-models-')) await caches.delete(k);
   const cache = self.caches ? await caches.open(CACHE) : null;
   const sizes = { 'part_b.data0': 57698304, 'part_b.data1': 44425472 };
-  const total = 116e6; let got = 0, fetched = false;
+  const total = 116e6, MB = x => (x / 1e6).toFixed(1) + ' MB';
+  let got = 0, fetched = false, logged = 0;
   return async name => {
-    const url = MODELS + name;
+    const url = MODELS + name, t0 = performance.now();
     let res = cache && await cache.match(url);
     if (!res) {
       if (!fetched) { fetched = true; log('downloading models from Hugging Face (~116 MB, cached in this browser for next time)'); }
-      const r = await fetch(url);
+      const r = await fetch(url).catch(() => { throw new Error(`could not reach Hugging Face for ${name}. The models need an internet connection the first time; after that they load from this browser's cache`); });
       if (!r.ok) throw new Error(`failed to fetch ${name} from Hugging Face: ${r.status}`);
       const parts = [], rd = r.body.getReader();
+      let n = 0;
       for (;;) {
         const { done, value } = await rd.read(); if (done) break;
-        parts.push(value); got += value.length; stage('Downloading models', Math.min(got / total, 1));
+        parts.push(value); n += value.length; got += value.length;
+        stage(`Downloading models · ${MB(got)} of ${MB(total)}`, Math.min(got / total, 1));
+        if (got - logged >= 20e6) { logged = got; log(`downloaded ${MB(got)} of ${MB(total)}`); }
       }
       const blob = new Blob(parts);
       if (cache) await cache.put(url, new Response(blob)).catch(() => {});
+      log(`${name}: ${MB(n)} downloaded in ${((performance.now() - t0) / 1000).toFixed(1)}s`);
       return new Uint8Array(await blob.arrayBuffer());
     }
     got += sizes[name] || 0;
-    return new Uint8Array(await res.arrayBuffer());
+    const buf = new Uint8Array(await res.arrayBuffer());
+    log(`${name}: ${MB(buf.length)} from browser cache`);
+    return buf;
   };
 }
 
+log(`cross-origin isolated: ${self.crossOriginIsolated}; CPU threads: ${ort.env.wasm.numThreads}`);
+
+// One model load at a time; a preload started on page open is reused by the first run.
 let radar = null;
-async function getRadar(device) {
-  if (radar && radar.device === device) return radar;
-  radar = null;
-  const load = await loader();
-  radar = await loadRadar(ort, { load, device, log });
-  return radar;
+function getRadar(device) {
+  if (radar && radar.device === device) return radar.p;
+  const old = radar;
+  const p = (async () => {
+    if (old) await old.p.then(r => Promise.all([r.sessA, r.sessB, r.sessC].map(x => x.release())), () => {});
+    return loadRadar(ort, { load: await loader(), device, log });
+  })();
+  radar = { device, p };
+  p.catch(() => { if (radar && radar.p === p) radar = null; });
+  return p;
+}
+
+let chosen = {};
+async function pickDeviceOnce(want) {
+  return chosen[want] ??= pickDevice(want).catch(e => { delete chosen[want]; throw e; });
 }
 
 async function pickDevice(want) {
@@ -68,11 +87,21 @@ async function pickDevice(want) {
   return 'wasm';
 }
 
+let latest = 0;
 self.onmessage = async ({ data }) => {
-  const t0 = performance.now();
+  const t0 = performance.now(), me = ++latest;
+  if (data.preload) {
+    try {
+      stage('Loading models', 0);
+      const device = await pickDeviceOnce(data.device);
+      if (me !== latest) return; // a newer preload or a scan has taken over
+      await getRadar(device);
+      post('ready');
+    } catch (e) { log(`model preload failed (${e.message}); will retry when a scan is loaded`); post('ready'); }
+    return;
+  }
   try {
-    log(`cross-origin isolated: ${self.crossOriginIsolated}; CPU threads: ${ort.env.wasm.numThreads}`);
-    let device = await pickDevice(data.device);
+    let device = await pickDeviceOnce(data.device);
     const modelsReady = getRadar(device).catch(e => e);
 
     stage('Reading input', 0);
@@ -97,12 +126,12 @@ self.onmessage = async ({ data }) => {
     }
     let res;
     try {
-      res = await runRadar(R, img, { log, progress: f => stage(`Running RADAR (${R.device === 'webgpu' ? 'WebGPU' : 'CPU'})`, f) });
+      res = await runRadar(R, img, { log, progress: (f, d) => stage(`Running RADAR (${R.device === 'webgpu' ? 'WebGPU' : 'CPU'})${d ? ` · ${d}` : ''}`, f) });
     } catch (e) {
       if (R.device !== 'webgpu' || data.device === 'webgpu') throw e;
       log(`WebGPU run failed (${e.message}); retrying on CPU`);
       R = await getRadar('wasm');
-      res = await runRadar(R, img, { log, progress: f => stage('Running RADAR (CPU)', f) });
+      res = await runRadar(R, img, { log, progress: (f, d) => stage(`Running RADAR (CPU)${d ? ` · ${d}` : ''}`, f) });
     }
     log(`total ${((performance.now() - t0) / 1000).toFixed(1)}s`);
     post('result', { ...res, info, device: R.device, seconds: (performance.now() - t0) / 1000 });
