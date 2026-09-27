@@ -25,7 +25,17 @@
       <h2>Your images stay on this computer</h2>
       <p>Files you choose are read and processed inside this browser tab, using your GPU or CPU. No image data or results are uploaded anywhere.
         The only downloads are this page and the model files (~116 MB from <a href="https://huggingface.co/jarrelscy/radar-onnx">Hugging Face</a>),
-        which are fetched once and cached in the browser.</p>
+        which are fetched once and cached in the browser. After the first visit the page also works with the internet turned off.</p>
+    </div>
+    <div class="specs">
+      <h2>What you need</h2>
+      <ul>
+        <li><b>Browser:</b> a recent desktop Chrome or Edge (tested). Firefox and Safari may work in CPU mode but are untested. Phones and tablets are not supported.</li>
+        <li><b>Memory:</b> 8 GB RAM minimum, 16 GB recommended. The tab peaks at about 4 GB during a run.</li>
+        <li><b>CPU:</b> any 64-bit CPU. A run takes about 35 s on a 16-core desktop; expect a few minutes on a 4-core laptop.</li>
+        <li><b>GPU (optional):</b> WebGPU mode needs a GPU with several GB of free memory and is still experimental. If it fails, Auto mode falls back to the CPU.</li>
+        <li><b>Storage and network:</b> about 150 MB of browser storage, and an internet connection for the first visit only.</li>
+      </ul>
     </div>
   </section>
 

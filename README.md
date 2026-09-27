@@ -16,6 +16,14 @@ Images never leave the computer. They are read and processed in the browser tab 
 
 From a study, the largest axial CT series with "abd" in its Series Description or Body Part Examined is used, and otherwise the largest CT series. Scouts, localizers and series with fewer than 16 images are skipped. Supported DICOM transfer syntaxes are uncompressed, deflated, RLE, JPEG lossless, JPEG-LS, JPEG 2000 and HTJ2K. Enhanced multi-frame DICOM isn't supported yet.
 
+## Requirements
+
+- Recent desktop Chrome or Edge (tested). Firefox and Safari may work in CPU mode but are untested.
+- 8 GB RAM minimum, 16 GB recommended; the tab peaks at about 4 GB.
+- A CPU run takes about 35 s on a 16-core desktop and a few minutes on a 4-core laptop.
+- WebGPU mode is experimental and needs several GB of free GPU memory; Auto falls back to the CPU.
+- About 150 MB of browser storage. Internet is needed on the first visit only; after that the page and models load from the browser cache.
+
 ## How it works
 
 The pipeline follows `evaluate()` in the upstream `inference_demo.py` and the radar-svc CPU service:

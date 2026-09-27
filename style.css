@@ -8,7 +8,9 @@ h1 span { color: var(--dim); font-weight: 400; }
 header p { margin: 6px 0; color: var(--dim); }
 .notice { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0 4px; }
 .notice > div { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid #f0c36a; border-radius: 8px; padding: 10px 14px; }
-.notice > div:last-child { border-left-color: #5fc98a; }
+.notice > div:nth-child(2) { border-left-color: #5fc98a; }
+.notice > .specs { grid-column: 1 / -1; border-left-color: #6aa8f0; }
+.notice ul { margin: 0; padding-left: 18px; color: var(--dim); font-size: 13.5px; }
 .notice h2 { margin: 0 0 4px; font-size: 15px; }
 .notice p { margin: 0; color: var(--dim); font-size: 13.5px; }
 @media (max-width: 700px) { .notice { grid-template-columns: 1fr; } }
